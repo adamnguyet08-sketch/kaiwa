@@ -123,10 +123,16 @@ const DATA = [
          'いいでね！<ruby>行<rt>い</rt></ruby>きたいです。'], correct:0 },
 ];
 
-let idx=0, stream=null, mediaRec=null, chunks=[];
+let idx=0, stream=null;
 const stage=document.getElementById('stage');
 const barfill=document.getElementById('barfill');
 const barlabel=document.getElementById('barlabel');
+
+async function getStream(){
+  if(stream && stream.active) return stream;
+  stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  return stream;
+}
 
 function updBar(){ barfill.style.width=((idx)/DATA.length*100)+'%';
   barlabel.textContent='Câu '+(idx+1)+' / '+DATA.length; }
@@ -152,59 +158,62 @@ function render(){
       '<div class="note">Thu xong bấm dừng để nghe lại. Có thể thu lại nhiều lần.</div>'+
     '</div>';
   stage.appendChild(card);
+
   const optsBox=card.querySelector('#opts');
   d.opts.forEach((html,i)=>{
     const b=document.createElement('button'); b.className='opt'; b.innerHTML=html;
-    b.onclick=()=>choose(i,b,d);
+    b.onclick=()=>choose(i,b,d,card);
     optsBox.appendChild(b);
   });
+
+  // --- ghi âm: mỗi câu có bộ ghi riêng (closure) ---
+  const mic=card.querySelector('#mic');
+  const next=card.querySelector('#next');
+  const player=card.querySelector('#player');
+  let rec=null, chunks=[];
+  function fail(msg){ player.innerHTML='<div class="note" style="color:#D32E2E">'+msg+'</div>';
+    mic.classList.remove('recording'); mic.textContent='● Thu lại'; }
+  mic.onclick=async()=>{
+    if(rec && rec.state==='recording'){ rec.stop(); return; }
+    let s;
+    try{ s=await getStream(); }
+    catch(e){ fail('Không mở được micro. Hãy mở bằng trình duyệt (qua link https) và bấm "Cho phép" micro.'); return; }
+    chunks=[];
+    try{ rec=new MediaRecorder(s); }
+    catch(e){ try{ rec=new MediaRecorder(s,{mimeType:'audio/mp4'}); }catch(e2){ fail('Thiết bị không hỗ trợ ghi âm trên trình duyệt này. Thử Chrome hoặc Safari mới nhất.'); return; } }
+    rec.ondataavailable=e=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
+    rec.onstop=()=>{
+      if(!chunks.length){ fail('Không thu được tiếng. Thử lại và nói gần micro hơn.'); return; }
+      const blob=new Blob(chunks,{type:chunks[0].type||'audio/webm'});
+      player.innerHTML='<audio controls playsinline src="'+URL.createObjectURL(blob)+'"></audio>';
+      mic.classList.remove('recording'); mic.textContent='● Thu lại';
+      next.disabled=false;
+    };
+    try{ rec.start(); }catch(e){ fail('Không bắt đầu ghi được. Thử lại nhé.'); return; }
+    mic.classList.add('recording'); mic.textContent='■ Dừng';
+  };
+  next.onclick=()=>{ idx++; render(); };
 }
 
-function choose(i,btn,d){
-  const fb=document.getElementById('fb');
-  const all=document.querySelectorAll('.opt');
+function choose(i,btn,d,card){
+  const fb=card.querySelector('#fb');
+  const all=card.querySelectorAll('.opt');
   if(i===d.correct){
     btn.classList.add('correct'); fb.className='fb ok'; fb.textContent='✓ Chính xác! Giờ hãy luyện nói câu này.';
     all.forEach(b=>b.disabled=true);
-    document.getElementById('rec').classList.add('show');
+    card.querySelector('#rec').classList.add('show');
   } else {
     btn.classList.add('wrong'); fb.className='fb no'; fb.textContent='✗ Chưa đúng, thử lại nhé.';
     btn.disabled=true;
   }
 }
 
-async function toggleRec(){
-  const mic=document.getElementById('mic');
-  if(mediaRec && mediaRec.state==='recording'){ mediaRec.stop(); return; }
-  try{
-    if(!stream) stream=await navigator.mediaDevices.getUserMedia({audio:true});
-  }catch(e){
-    document.getElementById('player').innerHTML='<div class="note" style="color:#D32E2E">Không mở được micro. Hãy mở file trực tiếp trên máy và cho phép micro.</div>';
-    return;
-  }
-  chunks=[]; mediaRec=new MediaRecorder(stream);
-  mediaRec.ondataavailable=e=>{ if(e.data.size>0) chunks.push(e.data); };
-  mediaRec.onstop=()=>{
-    const blob=new Blob(chunks,{type:chunks[0]?chunks[0].type:'audio/webm'});
-    const url=URL.createObjectURL(blob);
-    document.getElementById('player').innerHTML='<audio controls src="'+url+'"></audio>';
-    mic.classList.remove('recording'); mic.textContent='● Thu lại';
-    document.getElementById('next').disabled=false;
-  };
-  mediaRec.start(); mic.classList.add('recording'); mic.textContent='■ Dừng';
-}
-
 function done(){
   updBar(); barfill.style.width='100%'; barlabel.textContent='Hoàn thành!';
   stage.innerHTML='<div class="card done"><h2>🎉 おつかれさま！</h2>'+
     '<p>Bạn đã luyện xong cả đoạn hội thoại.</p>'+
-    '<button class="btn next" style="margin:0" onclick="idx=0;render()">Luyện lại từ đầu ↺</button></div>';
+    '<button class="btn next" style="flex:0 0 auto" onclick="idx=0;render()">Luyện lại từ đầu ↺</button></div>';
 }
-
-stage.addEventListener('click',e=>{
-  if(e.target && e.target.id==='mic') toggleRec();
-  if(e.target && e.target.id==='next'){ idx++; render(); }
-});
 
 render();
 </script>
