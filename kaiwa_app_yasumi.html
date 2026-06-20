@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Luyện Kaiwa - Ngày nghỉ</title>
+<style>
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{font-family:"Noto Sans JP","Noto Sans CJK JP","Noto Sans",sans-serif;
+    background:#F4EEE4;color:#262626;margin:0;padding:12px;line-height:1.5;
+    -webkit-tap-highlight-color:transparent;}
+  .wrap{max-width:640px;margin:0 auto;}
+  .head{text-align:center;margin-bottom:12px;}
+  .head h1{color:#157E73;font-size:clamp(20px,5.6vw,24px);margin:0 0 2px;}
+  .head .s{color:#8A8275;font-size:clamp(12px,3.4vw,14px);}
+  ruby rt{font-size:.5em;color:#8A8275;font-weight:400;}
+  .bar{height:8px;background:#E3D9C8;border-radius:6px;overflow:hidden;margin:10px 0 4px;}
+  .bar>i{display:block;height:100%;background:#157E73;width:0;transition:width .3s;}
+  .barlabel{font-size:12px;color:#8A8275;text-align:right;margin-bottom:12px;}
+  .card{background:#fff;border-radius:14px;padding:clamp(14px,4vw,24px);box-shadow:0 4px 18px rgba(0,0,0,.06);}
+  .who{display:inline-block;background:#2D5BA6;color:#fff;font-weight:700;font-size:12px;padding:4px 12px;border-radius:12px;margin-bottom:10px;}
+  .who.B{background:#157E73;}
+  .prompt{font-size:clamp(14px,4vw,16px);color:#0F665D;background:#F4FAF4;border-left:4px solid #157E73;padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:6px;}
+  .prompt b{color:#262626;}
+  .qlabel{font-size:13px;color:#8A8275;margin:14px 0 8px;font-weight:700;}
+  .opt{display:block;width:100%;text-align:left;background:#fff;border:2px solid #E3D9C8;border-radius:12px;
+    padding:14px 16px;margin:9px 0;font-size:clamp(16px,4.6vw,19px);font-family:inherit;cursor:pointer;
+    transition:.15s;min-height:54px;line-height:1.7;color:#262626;}
+  .opt:active{transform:scale(.99);}
+  .opt.correct{border-color:#157E73;background:#EAF6EE;}
+  .opt.wrong{border-color:#D32E2E;background:#FBEAEA;opacity:.85;}
+  .opt:disabled{cursor:default;}
+  .fb{margin:8px 2px;font-size:14px;font-weight:700;min-height:20px;}
+  .fb.ok{color:#157E73;} .fb.no{color:#D32E2E;}
+  .rec{margin-top:14px;padding:16px;border:2px dashed #157E73;border-radius:14px;background:#F4FAF4;display:none;}
+  .rec.show{display:block;}
+  .rec .say{font-size:clamp(19px,5.4vw,23px);font-weight:700;margin-bottom:4px;line-height:1.7;}
+  .rec .sayvi{font-size:13px;color:#6b6256;font-style:italic;margin-bottom:14px;}
+  .btnrow{display:flex;flex-wrap:wrap;gap:10px;}
+  .btn{font-family:inherit;font-size:16px;font-weight:700;border:none;border-radius:26px;
+    padding:14px 22px;cursor:pointer;min-height:50px;flex:1 1 140px;}
+  .btn.mic{background:#157E73;color:#fff;}
+  .btn.mic.recording{background:#D32E2E;animation:pulse 1s infinite;}
+  @keyframes pulse{50%{opacity:.7;}}
+  .btn.next{background:#2D5BA6;color:#fff;}
+  .btn:disabled{opacity:.4;cursor:default;}
+  audio{display:block;margin-top:14px;width:100%;}
+  .note{font-size:12px;color:#8A8275;margin-top:10px;}
+  .done{text-align:center;padding:26px 16px;}
+  .done h2{color:#157E73;}
+  .foot{text-align:center;font-size:11px;color:#8A8275;margin:16px 0 8px;font-weight:700;}
+  .warn{background:#FFF7D6;border:1px solid #E7C84B;border-radius:10px;padding:11px 14px;font-size:13px;color:#7a5b00;margin-bottom:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>会話れんしゅう · Ngày nghỉ</h1>
+    <div class="s">Chọn câu đúng → nói &amp; thu âm → nghe lại (Bài 1–9)</div>
+  </div>
+
+  <div class="warn" id="warn">🎤 Để dùng được micro, hãy <b>tải file này về máy và mở trực tiếp</b> bằng trình duyệt (Chrome/Edge), rồi bấm "Cho phép" khi được hỏi micro.</div>
+
+  <div class="bar"><i id="barfill"></i></div>
+  <div class="barlabel" id="barlabel"></div>
+
+  <div id="stage"></div>
+
+  <div class="foot">DUNGMORI · GunGun Kaiwa</div>
+</div>
+
+<script>
+// === Nội dung: mỗi câu = 1 lượt thoại. opts = 3 lựa chọn, correct = chỉ số đúng ===
+const DATA = [
+ { who:"A", vi:"Mai ơi, kỳ nghỉ tới (cậu) định <b>làm gì</b>?",
+   say:'<ruby>今度<rt>こんど</rt></ruby>の <ruby>休<rt>やす</rt></ruby>みに <ruby>何<rt>なに</rt></ruby>を しますか。',
+   sayvi:"Kỳ nghỉ tới định làm gì?",
+   opts:['<ruby>今度<rt>こんど</rt></ruby>の <ruby>休<rt>やす</rt></ruby>みに <ruby>何<rt>なに</rt></ruby>を しますか。',
+         '<ruby>今度<rt>こんど</rt></ruby>の <ruby>休<rt>やす</rt></ruby>みに <ruby>何<rt>なに</rt></ruby>が しますか。',
+         '<ruby>今度<rt>こんど</rt></ruby>の <ruby>休<rt>やす</rt></ruby>みに <ruby>何<rt>なに</rt></ruby>を しますだ。'], correct:0 },
+
+ { who:"B", vi:"Tớ <b>đi mua sắm với bạn</b>.",
+   say:'<ruby>友達<rt>ともだち</rt></ruby>と <ruby>買<rt>か</rt></ruby>い<ruby>物<rt>もの</rt></ruby>に <ruby>行<rt>い</rt></ruby>きます。',
+   sayvi:"Đi mua sắm với bạn.",
+   opts:['<ruby>友達<rt>ともだち</rt></ruby>に <ruby>買<rt>か</rt></ruby>い<ruby>物<rt>もの</rt></ruby>と <ruby>行<rt>い</rt></ruby>きます。',
+         '<ruby>友達<rt>ともだち</rt></ruby>と <ruby>買<rt>か</rt></ruby>い<ruby>物<rt>もの</rt></ruby>に <ruby>行<rt>い</rt></ruby>きます。',
+         '<ruby>友達<rt>ともだち</rt></ruby>と <ruby>買<rt>か</rt></ruby>い<ruby>物<rt>もの</rt></ruby>を <ruby>行<rt>い</rt></ruby>きます。'], correct:1 },
+
+ { who:"A", vi:"Tớ thì <b>muốn nghỉ ở nhà</b>.",
+   say:'<ruby>私<rt>わたし</rt></ruby>は うちで <ruby>休<rt>やす</rt></ruby>みたいです。',
+   sayvi:"Muốn nghỉ ở nhà.",
+   opts:['<ruby>私<rt>わたし</rt></ruby>は うちで <ruby>休<rt>やす</rt></ruby>みたいます。',
+         '<ruby>私<rt>わたし</rt></ruby>は うちで <ruby>休<rt>やす</rt></ruby>みたいです。',
+         '<ruby>私<rt>わたし</rt></ruby>は うちを <ruby>休<rt>やす</rt></ruby>みたいです。'], correct:1 },
+
+ { who:"B", vi:"(Cậu) <b>có thích</b> mua sắm không?",
+   say:'<ruby>買<rt>か</rt></ruby>い<ruby>物<rt>もの</rt></ruby>が <ruby>好<rt>す</rt></ruby>きですか。',
+   sayvi:"Có thích mua sắm không?",
+   opts:['<ruby>買<rt>か</rt></ruby>い<ruby>物<rt>もの</rt></ruby>を <ruby>好<rt>す</rt></ruby>きですか。',
+         '<ruby>買<rt>か</rt></ruby>い<ruby>物<rt>もの</rt></ruby>が <ruby>好<rt>す</rt></ruby>きますか。',
+         '<ruby>買<rt>か</rt></ruby>い<ruby>物<rt>もの</rt></ruby>が <ruby>好<rt>す</rt></ruby>きですか。'], correct:2 },
+
+ { who:"A", vi:"Có, tớ thích. Nhưng mà… <b>hết tiền rồi</b>.",
+   say:'はい、<ruby>好<rt>す</rt></ruby>きです。でも、<ruby>お金<rt>おかね</rt></ruby>が ありません。',
+   sayvi:"…nhưng hết tiền rồi.",
+   opts:['はい、<ruby>好<rt>す</rt></ruby>きです。でも、<ruby>お金<rt>おかね</rt></ruby>が ありません。',
+         'はい、<ruby>好<rt>す</rt></ruby>きです。でも、<ruby>お金<rt>おかね</rt></ruby>が いません。',
+         'はい、<ruby>好<rt>す</rt></ruby>きです。でも、<ruby>お金<rt>おかね</rt></ruby>を ありません。'], correct:0 },
+
+ { who:"B", vi:"Vậy <b>đi công viên không?</b> (rủ rê)",
+   say:'<ruby>公園<rt>こうえん</rt></ruby>へ <ruby>行<rt>い</rt></ruby>きませんか。',
+   sayvi:"Đi công viên không?",
+   opts:['<ruby>公園<rt>こうえん</rt></ruby>を <ruby>行<rt>い</rt></ruby>きませんか。',
+         '<ruby>公園<rt>こうえん</rt></ruby>へ <ruby>行<rt>い</rt></ruby>きませんか。',
+         '<ruby>公園<rt>こうえん</rt></ruby>へ <ruby>行<rt>い</rt></ruby>きませんですか。'], correct:1 },
+
+ { who:"A", vi:"Hay đấy! Tớ <b>muốn đi</b>.",
+   say:'いいですね！<ruby>行<rt>い</rt></ruby>きたいです。',
+   sayvi:"Hay đấy! Muốn đi.",
+   opts:['いいですね！<ruby>行<rt>い</rt></ruby>きたいです。',
+         'いいですね！<ruby>行<rt>い</rt></ruby>きたいます。',
+         'いいでね！<ruby>行<rt>い</rt></ruby>きたいです。'], correct:0 },
+];
+
+let idx=0, stream=null, mediaRec=null, chunks=[];
+const stage=document.getElementById('stage');
+const barfill=document.getElementById('barfill');
+const barlabel=document.getElementById('barlabel');
+
+function updBar(){ barfill.style.width=((idx)/DATA.length*100)+'%';
+  barlabel.textContent='Câu '+(idx+1)+' / '+DATA.length; }
+
+function render(){
+  if(idx>=DATA.length){ done(); return; }
+  updBar();
+  const d=DATA[idx];
+  stage.innerHTML='';
+  const card=document.createElement('div'); card.className='card';
+  card.innerHTML=
+    '<span class="who '+(d.who==='B'?'B':'')+'">Người '+d.who+'</span>'+
+    '<div class="prompt">💬 Ý cần nói: <b>'+d.vi+'</b></div>'+
+    '<div class="qlabel">Chọn câu tiếng Nhật ĐÚNG:</div>'+
+    '<div id="opts"></div>'+
+    '<div class="fb" id="fb"></div>'+
+    '<div class="rec" id="rec">'+
+      '<div class="say">🎤 '+d.say+'</div>'+
+      '<div class="sayvi">Hãy đọc to câu này và thu âm — '+d.sayvi+'</div>'+
+      '<div class="btnrow"><button class="btn mic" id="mic">● Thu âm</button>'+
+      '<button class="btn next" id="next" disabled>Câu tiếp →</button></div>'+
+      '<div id="player"></div>'+
+      '<div class="note">Thu xong bấm dừng để nghe lại. Có thể thu lại nhiều lần.</div>'+
+    '</div>';
+  stage.appendChild(card);
+  const optsBox=card.querySelector('#opts');
+  d.opts.forEach((html,i)=>{
+    const b=document.createElement('button'); b.className='opt'; b.innerHTML=html;
+    b.onclick=()=>choose(i,b,d);
+    optsBox.appendChild(b);
+  });
+}
+
+function choose(i,btn,d){
+  const fb=document.getElementById('fb');
+  const all=document.querySelectorAll('.opt');
+  if(i===d.correct){
+    btn.classList.add('correct'); fb.className='fb ok'; fb.textContent='✓ Chính xác! Giờ hãy luyện nói câu này.';
+    all.forEach(b=>b.disabled=true);
+    document.getElementById('rec').classList.add('show');
+  } else {
+    btn.classList.add('wrong'); fb.className='fb no'; fb.textContent='✗ Chưa đúng, thử lại nhé.';
+    btn.disabled=true;
+  }
+}
+
+async function toggleRec(){
+  const mic=document.getElementById('mic');
+  if(mediaRec && mediaRec.state==='recording'){ mediaRec.stop(); return; }
+  try{
+    if(!stream) stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  }catch(e){
+    document.getElementById('player').innerHTML='<div class="note" style="color:#D32E2E">Không mở được micro. Hãy mở file trực tiếp trên máy và cho phép micro.</div>';
+    return;
+  }
+  chunks=[]; mediaRec=new MediaRecorder(stream);
+  mediaRec.ondataavailable=e=>{ if(e.data.size>0) chunks.push(e.data); };
+  mediaRec.onstop=()=>{
+    const blob=new Blob(chunks,{type:chunks[0]?chunks[0].type:'audio/webm'});
+    const url=URL.createObjectURL(blob);
+    document.getElementById('player').innerHTML='<audio controls src="'+url+'"></audio>';
+    mic.classList.remove('recording'); mic.textContent='● Thu lại';
+    document.getElementById('next').disabled=false;
+  };
+  mediaRec.start(); mic.classList.add('recording'); mic.textContent='■ Dừng';
+}
+
+function done(){
+  updBar(); barfill.style.width='100%'; barlabel.textContent='Hoàn thành!';
+  stage.innerHTML='<div class="card done"><h2>🎉 おつかれさま！</h2>'+
+    '<p>Bạn đã luyện xong cả đoạn hội thoại.</p>'+
+    '<button class="btn next" style="margin:0" onclick="idx=0;render()">Luyện lại từ đầu ↺</button></div>';
+}
+
+stage.addEventListener('click',e=>{
+  if(e.target && e.target.id==='mic') toggleRec();
+  if(e.target && e.target.id==='next'){ idx++; render(); }
+});
+
+render();
+</script>
+</body>
+</html>
